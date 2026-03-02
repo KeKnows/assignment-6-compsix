@@ -6,111 +6,79 @@ const PORT = 3000;
 
 app.use(express.json());
 
-
-const db = new sqlite3.Database('./university.db', (err) => {
+const db = new sqlite3.Database('./database/university.db', (err) => {
     if (err) {
-        console.error('Database connection error:', err.message);
+        console.error(err.message);
     } else {
         console.log('Connected to university.db');
     }
 });
 
-
-
 app.get('/api/courses', (req, res) => {
-    const sql = `SELECT * FROM courses`;
-
-    db.all(sql, [], (err, rows) => {
+    db.all('SELECT * FROM courses', [], (err, rows) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
         }
-        res.json(rows);
     });
 });
-
-
 
 app.get('/api/courses/:id', (req, res) => {
-    const sql = `SELECT * FROM courses WHERE id = ?`;
-
-    db.get(sql, [req.params.id], (err, row) => {
+    db.get('SELECT * FROM courses WHERE id = ?', [req.params.id], (err, row) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ message: 'Course not found' });
+        } else {
+            res.json(row);
         }
-        if (!row) {
-            return res.status(404).json({ message: 'Course not found' });
-        }
-        res.json(row);
     });
 });
-
-
 
 app.post('/api/courses', (req, res) => {
     const { course_code, title, credits, description, semester } = req.body;
-
-    const sql = `
-        INSERT INTO courses (course_code, title, credits, description, semester)
-        VALUES (?, ?, ?, ?, ?)
-    `;
-
-    db.run(sql, [course_code, title, credits, description, semester], function (err) {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-
-        res.status(201).json({
-            message: 'Course created successfully',
-            id: this.lastID
-        });
-    });
-});
-
-
-
-app.put('/api/courses/:id', (req, res) => {
-    const { course_code, title, credits, description, semester } = req.body;
-
-    const sql = `
-        UPDATE courses
-        SET course_code = ?, title = ?, credits = ?, description = ?, semester = ?
-        WHERE id = ?
-    `;
-
-    db.run(sql,
-        [course_code, title, credits, description, semester, req.params.id],
+    db.run(
+        'INSERT INTO courses (course_code, title, credits, description, semester) VALUES (?, ?, ?, ?, ?)',
+        [course_code, title, credits, description, semester],
         function (err) {
             if (err) {
-                return res.status(500).json({ error: err.message });
+                res.status(500).json({ error: err.message });
+            } else {
+                res.status(201).json({ id: this.lastID });
             }
-
-            if (this.changes === 0) {
-                return res.status(404).json({ message: 'Course not found' });
-            }
-
-            res.json({ message: 'Course updated successfully' });
         }
     );
 });
 
-
-
-app.delete('/api/courses/:id', (req, res) => {
-    const sql = `DELETE FROM courses WHERE id = ?`;
-
-    db.run(sql, [req.params.id], function (err) {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+app.put('/api/courses/:id', (req, res) => {
+    const { course_code, title, credits, description, semester } = req.body;
+    db.run(
+        'UPDATE courses SET course_code = ?, title = ?, credits = ?, description = ?, semester = ? WHERE id = ?',
+        [course_code, title, credits, description, semester, req.params.id],
+        function (err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+            } else if (this.changes === 0) {
+                res.status(404).json({ message: 'Course not found' });
+            } else {
+                res.json({ message: 'Course updated successfully' });
+            }
         }
-
-        if (this.changes === 0) {
-            return res.status(404).json({ message: 'Course not found' });
-        }
-
-        res.json({ message: 'Course deleted successfully' });
-    });
+    );
 });
 
+app.delete('/api/courses/:id', (req, res) => {
+    db.run('DELETE FROM courses WHERE id = ?', [req.params.id], function (err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ message: 'Course not found' });
+        } else {
+            res.json({ message: 'Course deleted successfully' });
+        }
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
