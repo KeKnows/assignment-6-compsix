@@ -1,6 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 
-const db = new sqlite3.Database('./university.db', (err) => {
+const db = new sqlite3.Database('./database/university.db', (err) => {
     if (err) {
         console.error(err.message);
     } else {
@@ -28,6 +28,8 @@ db.serialize(() => {
     courses.forEach(course => {
         db.run(insert, course);
     });
+
     console.log('Courses successfully added to the database.');
-    db.close();
 });
+
+db.close();
