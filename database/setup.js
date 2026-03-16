@@ -6,7 +6,7 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS courses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      courseCode TEXT,
+      course_code TEXT,
       title TEXT,
       credits INTEGER,
       description TEXT,
