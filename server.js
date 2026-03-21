@@ -1,46 +1,117 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
+const session = require('express-session');
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
 
-const db = new sqlite3.Database('./database/university.db', (err) => {
+app.use(session({
+    secret: 'secret-key',
+    resave: false,
+    saveUninitialized: false
+}));
+
+const db = new sqlite3.Database('./database/task_management.db', (err) => {
     if (err) {
         console.error(err.message);
     } else {
-        console.log('Connected to university.db');
+        console.log('Connected to task_management.db');
     }
 });
 
-app.get('/api/courses', (req, res) => {
-    db.all('SELECT * FROM courses', [], (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else {
-            res.json(rows);
+
+function authMiddleware(req, res, next) {
+    if (!req.session.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+}
+
+
+
+app.post('/api/register', (req, res) => {
+    const { username, email, password } = req.body;
+
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, user) => {
+        if (user) {
+            return res.status(400).json({ error: 'Email already exists' });
         }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        db.run(
+            `INSERT INTO users (username, email, password) VALUES (?, ?, ?)`,
+            [username, email, hashedPassword],
+            function (err) {
+                if (err) {
+                    return res.status(500).json({ error: err.message });
+                }
+
+                res.json({ message: 'User registered successfully' });
+            }
+        );
     });
 });
 
-app.get('/api/courses/:id', (req, res) => {
-    db.get('SELECT * FROM courses WHERE id = ?', [req.params.id], (err, row) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else if (!row) {
-            res.status(404).json({ message: 'Course not found' });
-        } else {
-            res.json(row);
+
+
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, user) => {
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
+
+        const validPassword = await bcrypt.compare(password, user.password);
+
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        req.session.userId = user.id;
+
+        res.json({ message: 'Login successful' });
     });
 });
 
-app.post('/api/courses', (req, res) => {
-    const { course_code, title, credits, description, semester } = req.body;
+
+
+app.post('/api/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.json({ message: 'Logged out successfully' });
+    });
+});
+
+
+
+app.get('/api/projects', authMiddleware, (req, res) => {
+    db.all(
+        'SELECT * FROM projects WHERE userId = ?',
+        [req.session.userId],
+        (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+            } else {
+                res.json(rows);
+            }
+        }
+    );
+});
+
+
+// =========================
+// OPTIONAL: CREATE PROJECT
+// =========================
+app.post('/api/projects', authMiddleware, (req, res) => {
+    const { name, description } = req.body;
+
     db.run(
-        'INSERT INTO courses (course_code, title, credits, description, semester) VALUES (?, ?, ?, ?, ?)',
-        [course_code, title, credits, description, semester],
+        'INSERT INTO projects (name, description, userId) VALUES (?, ?, ?)',
+        [name, description, req.session.userId],
         function (err) {
             if (err) {
                 res.status(500).json({ error: err.message });
@@ -51,34 +122,6 @@ app.post('/api/courses', (req, res) => {
     );
 });
 
-app.put('/api/courses/:id', (req, res) => {
-    const { course_code, title, credits, description, semester } = req.body;
-    db.run(
-        'UPDATE courses SET course_code = ?, title = ?, credits = ?, description = ?, semester = ? WHERE id = ?',
-        [course_code, title, credits, description, semester, req.params.id],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else if (this.changes === 0) {
-                res.status(404).json({ message: 'Course not found' });
-            } else {
-                res.json({ message: 'Course updated successfully' });
-            }
-        }
-    );
-});
-
-app.delete('/api/courses/:id', (req, res) => {
-    db.run('DELETE FROM courses WHERE id = ?', [req.params.id], function (err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else if (this.changes === 0) {
-            res.status(404).json({ message: 'Course not found' });
-        } else {
-            res.json({ message: 'Course deleted successfully' });
-        }
-    });
-});
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
