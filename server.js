@@ -103,9 +103,7 @@ app.get('/api/projects', authMiddleware, (req, res) => {
 });
 
 
-// =========================
-// OPTIONAL: CREATE PROJECT
-// =========================
+
 app.post('/api/projects', authMiddleware, (req, res) => {
     const { name, description } = req.body;
 
