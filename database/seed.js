@@ -1,35 +1,70 @@
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
 
-const db = new sqlite3.Database('./database/university.db', (err) => {
+const db = new sqlite3.Database('./database/task_management.db', (err) => {
     if (err) {
         console.error(err.message);
     } else {
-        console.log('Connected to university.db');
+        console.log('Connected to task_management.db');
     }
 });
 
-const insert = `
-    INSERT INTO courses (course_code, title, credits, description, semester)
-    VALUES (?, ?, ?, ?, ?)
-`;
-
-const courses = [
-    ['CS101', 'Intro Programming', 3, 'Learn Python basics', 'Fall 2024'],
-    ['BIO120', 'General Biology', 3, 'Introduction to biological principles', 'Fall 2024'],
-    ['MATH150', 'Calculus I', 4, 'Basic calculus', 'Fall 2024'],
-    ['ENG101', 'Composition I', 3, 'Academic writing and critical thinking', 'Spring 2025'],
-    ['ME210', 'Thermodynamics', 3, 'Principles of thermodynamics and heat transfer', 'Spring 2025'],
-    ['CS301', 'Database Systems', 3, 'Design and implementation of database systems', 'Fall 2024'],
-    ['PHYS201', 'Physics II', 4, 'Electricity, magnetism, and modern physics', 'Spring 2025'],
-    ['CS201', 'Data Structures', 4, 'Study of fundamental data structures and algorithms', 'Spring 2025']
-];
-
 db.serialize(() => {
-    courses.forEach(course => {
-        db.run(insert, course);
-    });
 
-    console.log('Courses successfully added to the database.');
+    db.run(`DELETE FROM users`);
+    db.run(`DELETE FROM projects`);
+    db.run(`DELETE FROM tasks`);
+
+    const password = bcrypt.hashSync('password123', 10);
+
+    db.run(
+        `INSERT INTO users (username, email, password) VALUES (?, ?, ?)`,
+        ['testuser', 'test@example.com', password],
+        function (err) {
+            if (err) {
+                console.error(err.message);
+                return;
+            }
+
+            const userId = this.lastID;
+
+            db.run(
+                `INSERT INTO projects (name, description, userId) VALUES (?, ?, ?)`,
+                ['Project 1', 'First test project', userId],
+                function (err) {
+                    if (err) return console.error(err.message);
+
+                    const project1Id = this.lastID;
+
+                    db.run(
+                        `INSERT INTO tasks (title, completed, projectId) VALUES (?, ?, ?)`,
+                        ['Task 1', 0, project1Id]
+                    );
+                    db.run(
+                        `INSERT INTO tasks (title, completed, projectId) VALUES (?, ?, ?)`,
+                        ['Task 2', 1, project1Id]
+                    );
+                }
+            );
+
+            db.run(
+                `INSERT INTO projects (name, description, userId) VALUES (?, ?, ?)`,
+                ['Project 2', 'Second test project', userId],
+                function (err) {
+                    if (err) return console.error(err.message);
+
+                    const project2Id = this.lastID;
+
+                    db.run(
+                        `INSERT INTO tasks (title, completed, projectId) VALUES (?, ?, ?)`,
+                        ['Task A', 0, project2Id]
+                    );
+                }
+            );
+        }
+    );
+
+    console.log('Database seeded successfully.');
 });
 
 db.close();
